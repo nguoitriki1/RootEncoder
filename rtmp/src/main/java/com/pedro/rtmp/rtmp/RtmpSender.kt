@@ -19,6 +19,7 @@ package com.pedro.rtmp.rtmp
 import android.util.Log
 import com.pedro.common.AudioCodec
 import com.pedro.common.ConnectChecker
+import com.pedro.common.ERROR_CODE_STREAM_SEND_FRAME_FAILUE
 import com.pedro.common.VideoCodec
 import com.pedro.common.base.BaseSender
 import com.pedro.common.frame.MediaFrame
@@ -33,10 +34,16 @@ import com.pedro.rtmp.flv.video.packet.Av1Packet
 import com.pedro.rtmp.flv.video.packet.H264Packet
 import com.pedro.rtmp.flv.video.packet.H265Packet
 import com.pedro.rtmp.utils.socket.RtmpSocket
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import java.nio.ByteBuffer
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Created by pedro on 8/04/21.
@@ -49,6 +56,7 @@ class RtmpSender(
   private var audioPacket: BasePacket = AacPacket()
   private var videoPacket: BasePacket = H264Packet()
   var socket: RtmpSocket? = null
+  private val lastExecutionTime = AtomicLong(System.currentTimeMillis())
 
   override fun setVideoInfo(sps: ByteBuffer, pps: ByteBuffer?, vps: ByteBuffer?) {
     videoPacket = when (commandsManager.videoCodec) {
@@ -77,6 +85,19 @@ class RtmpSender(
   }
 
   override suspend fun onRun() {
+    scope.launch(Dispatchers.IO) {
+      val timeoutTask = async {
+        while (scope.isActive && running) {
+          delay(10000)
+          if (System.currentTimeMillis() - lastExecutionTime.get() >= 10000) {
+            this.cancel()
+            connectChecker.onErrorConnect(ERROR_CODE_STREAM_SEND_FRAME_FAILUE)
+            break
+          }
+        }
+      }
+    }
+
     while (scope.isActive && running) {
       val error = runCatching {
         val mediaFrame = runInterruptible { queue.poll(1, TimeUnit.SECONDS) }
