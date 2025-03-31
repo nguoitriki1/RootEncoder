@@ -24,23 +24,36 @@ import com.pedro.encoder.input.audio.GetMicrophoneData
  * Created by pedro on 11/1/24.
  */
 @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
-class NoAudioSource: AudioSource() {
+class NoAudioSource : AudioSource() {
 
-  private var running = false
+    private var running = false
+    private var isMuted = false;
 
-  override fun create(sampleRate: Int, isStereo: Boolean, echoCanceler: Boolean, noiseSuppressor: Boolean): Boolean {
-    return true
-  }
+    override fun create(
+        sampleRate: Int,
+        isStereo: Boolean,
+        echoCanceler: Boolean,
+        noiseSuppressor: Boolean
+    ): Boolean {
+        return true
+    }
 
-  override fun start(getMicrophoneData: GetMicrophoneData) {
-    if (!isRunning()) running = true
-  }
+    override fun start(getMicrophoneData: GetMicrophoneData) {
+        if (!isRunning()) running = true
+    }
 
-  override fun stop() {
-    if (isRunning()) running = false
-  }
+    override fun stop() {
+        if (isRunning()) running = false
+    }
 
-  override fun release() {}
+    override fun release() {}
+    override fun muteAudio(enable: Boolean) {
+        if (enable)
+            isMuted = true
+        else
+            isMuted = false
+    }
 
-  override fun isRunning(): Boolean = running
+    override fun isRunning(): Boolean = running
+
 }

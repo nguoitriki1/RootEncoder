@@ -54,21 +54,33 @@ class MixAudioSource(
     mediaProjection: MediaProjection,
     mediaProjectionCallback: MediaProjection.Callback? = null,
     private val microphoneAudioSource: Int = MediaRecorder.AudioSource.DEFAULT
-): AudioSource(), GetMicrophoneData {
+) : AudioSource(), GetMicrophoneData {
 
     private val TAG = "MixAudioSource"
     private var handlerThread = HandlerThread(TAG)
     private val microphone = MicrophoneManager(this)
     private var preferredDevice: AudioDeviceInfo? = null
-    private val mediaProjectionCallback = mediaProjectionCallback ?: object : MediaProjection.Callback() {}
+    private val mediaProjectionCallback =
+        mediaProjectionCallback ?: object : MediaProjection.Callback() {}
 
     init {
         MediaProjectionHandler.mediaProjection = mediaProjection
     }
 
-    override fun create(sampleRate: Int, isStereo: Boolean, echoCanceler: Boolean, noiseSuppressor: Boolean): Boolean {
+    override fun create(
+        sampleRate: Int,
+        isStereo: Boolean,
+        echoCanceler: Boolean,
+        noiseSuppressor: Boolean
+    ): Boolean {
         //create microphone to confirm valid parameters
-        val result = microphone.createMicrophone(microphoneAudioSource, sampleRate, isStereo, echoCanceler, noiseSuppressor)
+        val result = microphone.createMicrophone(
+            microphoneAudioSource,
+            sampleRate,
+            isStereo,
+            echoCanceler,
+            noiseSuppressor
+        )
         if (!result) {
             throw IllegalArgumentException("Some parameters specified are not valid");
         }
@@ -85,12 +97,23 @@ class MixAudioSource(
         if (!isRunning()) {
             handlerThread = HandlerThread(TAG)
             handlerThread.start()
-            MediaProjectionHandler.mediaProjection?.registerCallback(mediaProjectionCallback, Handler(handlerThread.looper))
-            val config = AudioPlaybackCaptureConfiguration.Builder(MediaProjectionHandler.mediaProjection!!)
-                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
-                .addMatchingUsage(AudioAttributes.USAGE_GAME)
-                .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN).build()
-            val result = microphone.createMixMicrophone(microphoneAudioSource, config, sampleRate, isStereo, echoCanceler, noiseSuppressor)
+            MediaProjectionHandler.mediaProjection?.registerCallback(
+                mediaProjectionCallback,
+                Handler(handlerThread.looper)
+            )
+            val config =
+                AudioPlaybackCaptureConfiguration.Builder(MediaProjectionHandler.mediaProjection!!)
+                    .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+                    .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                    .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN).build()
+            val result = microphone.createMixMicrophone(
+                microphoneAudioSource,
+                config,
+                sampleRate,
+                isStereo,
+                echoCanceler,
+                noiseSuppressor
+            )
             if (!result) {
                 throw IllegalArgumentException("Failed to create microphone audio source")
             }
@@ -112,6 +135,12 @@ class MixAudioSource(
     override fun isRunning(): Boolean = microphone.isRunning
 
     override fun release() {}
+    override fun muteAudio(enable: Boolean) {
+        if (enable)
+            mute()
+        else
+            unMute()
+    }
 
     override fun inputPCMData(frame: Frame) {
         getMicrophoneData?.inputPCMData(frame)
@@ -132,14 +161,20 @@ class MixAudioSource(
     }
 
     var mixVolume: Float
-        set(value) { microphone.setVolume(value) }
+        set(value) {
+            microphone.setVolume(value)
+        }
         get() = (microphone.microphoneVolume + microphone.internalVolume) / 2f
 
     var microphoneVolume: Float
-        set(value) { microphone.microphoneVolume = value }
+        set(value) {
+            microphone.microphoneVolume = value
+        }
         get() = microphone.microphoneVolume
 
     var internalVolume: Float
-        set(value) { microphone.internalVolume = value }
+        set(value) {
+            microphone.internalVolume = value
+        }
         get() = microphone.internalVolume
 }

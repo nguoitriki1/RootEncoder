@@ -32,139 +32,154 @@ import java.io.IOException
  * Created by pedro on 12/1/24.
  */
 class AudioFileSource(
-  private val context: Context,
-  private val path: Uri,
-  loopMode: Boolean = true,
-  onFinish: (isLoop: Boolean) -> Unit = {}
-): AudioSource() {
+    private val context: Context,
+    private val path: Uri,
+    loopMode: Boolean = true,
+    onFinish: (isLoop: Boolean) -> Unit = {}
+) : AudioSource() {
 
-  private val getMicrophoneDataCallback = object: GetMicrophoneData {
-    override fun inputPCMData(frame: Frame) {
-      audioTrackPlayer?.write(frame.buffer, frame.offset, frame.size)
-      getMicrophoneData?.inputPCMData(frame)
+    private val getMicrophoneDataCallback = object : GetMicrophoneData {
+        override fun inputPCMData(frame: Frame) {
+            audioTrackPlayer?.write(frame.buffer, frame.offset, frame.size)
+            getMicrophoneData?.inputPCMData(frame)
+        }
     }
-  }
-  private val audioDecoderInterface: () -> Unit = {
-    onFinish(false)
-  }
-  private val decoderInterface = object: DecoderInterface {
-    override fun onLoop() {
-      onFinish(true)
+    private val audioDecoderInterface: () -> Unit = {
+        onFinish(false)
     }
-  }
-  private var running = false
-  private var audioDecoder = AudioDecoder(getMicrophoneDataCallback, audioDecoderInterface, decoderInterface)
-  private var audioTrackPlayer: AudioTrack? = null
-  private var playingAudio = false
-
-  init {
-    setLoopMode(loopMode)
-  }
-
-  override fun create(sampleRate: Int, isStereo: Boolean, echoCanceler: Boolean, noiseSuppressor: Boolean): Boolean {
-    //create extractor to confirm valid parameters
-    val result = audioDecoder.initExtractor(context, path)
-    if (!result) {
-      throw IllegalArgumentException("Audio file track not found")
+    private val decoderInterface = object : DecoderInterface {
+        override fun onLoop() {
+            onFinish(true)
+        }
     }
-    if (audioDecoder.sampleRate != sampleRate) {
-      throw IllegalArgumentException("Audio file sample rate (${audioDecoder.sampleRate}) is different than the configured: $sampleRate")
+    private var running = false
+    private var audioDecoder =
+        AudioDecoder(getMicrophoneDataCallback, audioDecoderInterface, decoderInterface)
+    private var audioTrackPlayer: AudioTrack? = null
+    private var playingAudio = false
+
+    init {
+        setLoopMode(loopMode)
     }
-    if (audioDecoder.isStereo != isStereo) {
-      throw IllegalArgumentException("Audio file isStereo (${audioDecoder.isStereo}) is different than the configured: $isStereo")
+
+    override fun create(
+        sampleRate: Int,
+        isStereo: Boolean,
+        echoCanceler: Boolean,
+        noiseSuppressor: Boolean
+    ): Boolean {
+        //create extractor to confirm valid parameters
+        val result = audioDecoder.initExtractor(context, path)
+        if (!result) {
+            throw IllegalArgumentException("Audio file track not found")
+        }
+        if (audioDecoder.sampleRate != sampleRate) {
+            throw IllegalArgumentException("Audio file sample rate (${audioDecoder.sampleRate}) is different than the configured: $sampleRate")
+        }
+        if (audioDecoder.isStereo != isStereo) {
+            throw IllegalArgumentException("Audio file isStereo (${audioDecoder.isStereo}) is different than the configured: $isStereo")
+        }
+        return true
     }
-    return true
-  }
 
-  override fun start(getMicrophoneData: GetMicrophoneData) {
-    this.getMicrophoneData = getMicrophoneData
-    audioDecoder.prepareAudio()
-    audioDecoder.start()
-    running = true
-    if (playingAudio) {
-      stopAudioDevice()
-      playAudioDevice()
+    override fun start(getMicrophoneData: GetMicrophoneData) {
+        this.getMicrophoneData = getMicrophoneData
+        audioDecoder.prepareAudio()
+        audioDecoder.start()
+        running = true
+        if (playingAudio) {
+            stopAudioDevice()
+            playAudioDevice()
+        }
     }
-  }
 
-  override fun stop() {
-    running = false
-    audioDecoder.stop()
-  }
-
-  override fun isRunning(): Boolean = running
-
-  override fun release() {
-    if (running) stop()
-  }
-
-  fun mute() {
-    audioDecoder.mute()
-  }
-
-  fun unMute() {
-    audioDecoder.unMute()
-  }
-
-  fun isMuted(): Boolean = audioDecoder.isMuted
-
-  fun moveTo(time: Double) {
-    audioDecoder.moveTo(time)
-  }
-
-  fun getDuration() = audioDecoder.duration
-
-  fun getTime() = audioDecoder.time
-
-  fun setLoopMode(enabled: Boolean) {
-    audioDecoder.isLoopMode = enabled
-  }
-
-  @Throws(IOException::class)
-  fun replaceFile(context: Context, uri: Uri) {
-    val sampleRate = audioDecoder.sampleRate
-    val isStereo = audioDecoder.isStereo
-    val wasRunning = audioDecoder.isRunning
-    val audioDecoder = AudioDecoder(getMicrophoneData, audioDecoderInterface, decoderInterface)
-    audioDecoder.extractor = this.audioDecoder.extractor
-    if (!audioDecoder.initExtractor(context, uri)) throw IOException("Extraction failed")
-    if (sampleRate != audioDecoder.sampleRate) throw IOException("SampleRate must be the same that the previous file")
-    if (isStereo != audioDecoder.isStereo) throw IOException("Channels must be the same that the previous file")
-    this.audioDecoder.stop()
-    this.audioDecoder = audioDecoder
-    if (wasRunning) {
-      audioDecoder.prepareAudio()
-      audioDecoder.start()
+    override fun stop() {
+        running = false
+        audioDecoder.stop()
     }
-  }
 
-  fun playAudioDevice() {
-    playingAudio = true
-    if (!running) return
-    if (isAudioDeviceEnabled()) {
-      audioTrackPlayer?.stop()
-      audioTrackPlayer = null
+    override fun isRunning(): Boolean = running
+
+    override fun release() {
+        if (running) stop()
     }
-    val channel = if (isStereo) AudioFormat.CHANNEL_OUT_STEREO else AudioFormat.CHANNEL_OUT_MONO
-    val buffSize = AudioTrack.getMinBufferSize(sampleRate, channel, AudioFormat.ENCODING_PCM_16BIT)
-    audioTrackPlayer = AudioTrack(
-      AudioManager.STREAM_MUSIC, sampleRate, channel,
-      AudioFormat.ENCODING_PCM_16BIT, buffSize, AudioTrack.MODE_STREAM
-    )
-    audioTrackPlayer?.play()
-  }
 
-  fun stopAudioDevice() {
-    playingAudio = false
-    if (isAudioDeviceEnabled()) {
-      audioTrackPlayer?.stop()
-      audioTrackPlayer = null
+    override fun muteAudio(enable: Boolean) {
+        if (enable)
+            mute()
+        else
+            unMute()
     }
-  }
 
-  fun isAudioDeviceEnabled(): Boolean = audioTrackPlayer?.playState == AudioTrack.PLAYSTATE_PLAYING
+    fun mute() {
+        audioDecoder.mute()
+    }
 
-  fun setExtractor(extractor: Extractor) {
-    audioDecoder.extractor = extractor
-  }
+    fun unMute() {
+        audioDecoder.unMute()
+    }
+
+    fun isMuted(): Boolean = audioDecoder.isMuted
+
+    fun moveTo(time: Double) {
+        audioDecoder.moveTo(time)
+    }
+
+    fun getDuration() = audioDecoder.duration
+
+    fun getTime() = audioDecoder.time
+
+    fun setLoopMode(enabled: Boolean) {
+        audioDecoder.isLoopMode = enabled
+    }
+
+    @Throws(IOException::class)
+    fun replaceFile(context: Context, uri: Uri) {
+        val sampleRate = audioDecoder.sampleRate
+        val isStereo = audioDecoder.isStereo
+        val wasRunning = audioDecoder.isRunning
+        val audioDecoder = AudioDecoder(getMicrophoneData, audioDecoderInterface, decoderInterface)
+        audioDecoder.extractor = this.audioDecoder.extractor
+        if (!audioDecoder.initExtractor(context, uri)) throw IOException("Extraction failed")
+        if (sampleRate != audioDecoder.sampleRate) throw IOException("SampleRate must be the same that the previous file")
+        if (isStereo != audioDecoder.isStereo) throw IOException("Channels must be the same that the previous file")
+        this.audioDecoder.stop()
+        this.audioDecoder = audioDecoder
+        if (wasRunning) {
+            audioDecoder.prepareAudio()
+            audioDecoder.start()
+        }
+    }
+
+    fun playAudioDevice() {
+        playingAudio = true
+        if (!running) return
+        if (isAudioDeviceEnabled()) {
+            audioTrackPlayer?.stop()
+            audioTrackPlayer = null
+        }
+        val channel = if (isStereo) AudioFormat.CHANNEL_OUT_STEREO else AudioFormat.CHANNEL_OUT_MONO
+        val buffSize =
+            AudioTrack.getMinBufferSize(sampleRate, channel, AudioFormat.ENCODING_PCM_16BIT)
+        audioTrackPlayer = AudioTrack(
+            AudioManager.STREAM_MUSIC, sampleRate, channel,
+            AudioFormat.ENCODING_PCM_16BIT, buffSize, AudioTrack.MODE_STREAM
+        )
+        audioTrackPlayer?.play()
+    }
+
+    fun stopAudioDevice() {
+        playingAudio = false
+        if (isAudioDeviceEnabled()) {
+            audioTrackPlayer?.stop()
+            audioTrackPlayer = null
+        }
+    }
+
+    fun isAudioDeviceEnabled(): Boolean =
+        audioTrackPlayer?.playState == AudioTrack.PLAYSTATE_PLAYING
+
+    fun setExtractor(extractor: Extractor) {
+        audioDecoder.extractor = extractor
+    }
 }
