@@ -36,86 +36,108 @@ typealias InternalSource = InternalAudioSource
 
 @RequiresApi(Build.VERSION_CODES.Q)
 class InternalAudioSource(
-  mediaProjection: MediaProjection,
-  mediaProjectionCallback: MediaProjection.Callback? = null,
-): AudioSource(), GetMicrophoneData {
+    mediaProjection: MediaProjection,
+    mediaProjectionCallback: MediaProjection.Callback? = null,
+) : AudioSource(), GetMicrophoneData {
 
-  private val TAG = "InternalAudioSource"
-  private val microphone = MicrophoneManager(this)
-  private var handlerThread = HandlerThread(TAG)
-  private val mediaProjectionCallback = mediaProjectionCallback ?: object : MediaProjection.Callback() {}
+    private val TAG = "InternalAudioSource"
+    private val microphone = MicrophoneManager(this)
+    private var handlerThread = HandlerThread(TAG)
+    private val mediaProjectionCallback =
+        mediaProjectionCallback ?: object : MediaProjection.Callback() {}
 
-  init {
-    MediaProjectionHandler.mediaProjection = mediaProjection
-  }
-
-  override fun create(sampleRate: Int, isStereo: Boolean, echoCanceler: Boolean, noiseSuppressor: Boolean): Boolean {
-    //create microphone to confirm valid parameters
-    val result = microphone.createMicrophone(sampleRate, isStereo, echoCanceler, noiseSuppressor)
-    if (!result) {
-      throw IllegalArgumentException("Some parameters specified are not valid");
+    init {
+        MediaProjectionHandler.mediaProjection = mediaProjection
     }
-    return true
-  }
 
-  override fun start(getMicrophoneData: GetMicrophoneData) {
-    this.getMicrophoneData = getMicrophoneData
-    if (!isRunning()) {
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        handlerThread = HandlerThread(TAG)
-        handlerThread.start()
-        MediaProjectionHandler.mediaProjection?.registerCallback(mediaProjectionCallback, Handler(handlerThread.looper))
-        val config = AudioPlaybackCaptureConfiguration.Builder(MediaProjectionHandler.mediaProjection!!)
-          .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
-          .addMatchingUsage(AudioAttributes.USAGE_GAME)
-          .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN).build()
-        try {
-          val result = microphone.createInternalMicrophone(config, sampleRate, isStereo,
-            echoCanceler, noiseSuppressor)
-          if (!result) throw IllegalArgumentException("Failed to create internal audio source")
-        } catch (e: UnsupportedOperationException) {
-          throw IllegalArgumentException("invalid MediaProjection used")
+    override fun create(
+        sampleRate: Int,
+        isStereo: Boolean,
+        echoCanceler: Boolean,
+        noiseSuppressor: Boolean
+    ): Boolean {
+        //create microphone to confirm valid parameters
+        val result =
+            microphone.createMicrophone(sampleRate, isStereo, echoCanceler, noiseSuppressor)
+        if (!result) {
+            throw IllegalArgumentException("Some parameters specified are not valid");
         }
-      } else {
-        throw IllegalStateException("Using internal audio in a invalid Android version. Android 10+ is necessary")
-      }
-      microphone.start()
+        return true
     }
-  }
 
-  override fun stop() {
-    if (isRunning()) {
-      this.getMicrophoneData = null
-      microphone.stop()
-      handlerThread.quitSafely()
+    override fun start(getMicrophoneData: GetMicrophoneData) {
+        this.getMicrophoneData = getMicrophoneData
+        if (!isRunning()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                handlerThread = HandlerThread(TAG)
+                handlerThread.start()
+                MediaProjectionHandler.mediaProjection?.registerCallback(
+                    mediaProjectionCallback,
+                    Handler(handlerThread.looper)
+                )
+                val config =
+                    AudioPlaybackCaptureConfiguration.Builder(MediaProjectionHandler.mediaProjection!!)
+                        .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+                        .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                        .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN).build()
+                try {
+                    val result = microphone.createInternalMicrophone(
+                        config, sampleRate, isStereo,
+                        echoCanceler, noiseSuppressor
+                    )
+                    if (!result) throw IllegalArgumentException("Failed to create internal audio source")
+                } catch (e: UnsupportedOperationException) {
+                    throw IllegalArgumentException("invalid MediaProjection used")
+                }
+            } else {
+                throw IllegalStateException("Using internal audio in a invalid Android version. Android 10+ is necessary")
+            }
+            microphone.start()
+        }
     }
-  }
 
-  override fun isRunning(): Boolean = microphone.isRunning
+    override fun stop() {
+        if (isRunning()) {
+            this.getMicrophoneData = null
+            microphone.stop()
+            handlerThread.quitSafely()
+        }
+    }
 
-  override fun release() {
-    MediaProjectionHandler.mediaProjection?.unregisterCallback(mediaProjectionCallback)
-  }
+    override fun isRunning(): Boolean = microphone.isRunning
 
-  override fun inputPCMData(frame: Frame) {
-    getMicrophoneData?.inputPCMData(frame)
-  }
+    override fun release() {
+        MediaProjectionHandler.mediaProjection?.unregisterCallback(mediaProjectionCallback)
+    }
 
-  fun mute() {
-    microphone.mute()
-  }
+    override fun muteAudio(enable: Boolean) {
+        if (enable)
+            mute()
+        else
+            unMute()
+    }
 
-  fun unMute() {
-    microphone.unMute()
-  }
+    override fun inputPCMData(frame: Frame) {
+        getMicrophoneData?.inputPCMData(frame)
+    }
 
-  fun isMuted(): Boolean = microphone.isMuted
+    fun mute() {
+        microphone.mute()
+    }
 
-  fun setAudioEffect(effect: CustomAudioEffect) {
-    microphone.setCustomAudioEffect(effect)
-  }
+    fun unMute() {
+        microphone.unMute()
+    }
 
-  var internalVolume: Float
-    set(value) { microphone.internalVolume = value }
-    get() = microphone.internalVolume
+    override fun isMuted(): Boolean = microphone.isMuted
+
+    fun setAudioEffect(effect: CustomAudioEffect) {
+        microphone.setCustomAudioEffect(effect)
+    }
+
+    var internalVolume: Float
+        set(value) {
+            microphone.internalVolume = value
+        }
+        get() = microphone.internalVolume
 }

@@ -81,6 +81,15 @@ inline infix fun <reified T: Any> BlockingQueue<T>.trySend(item: T): Boolean {
   }
 }
 
+inline infix fun <reified T: Any> BlockingQueue<T>.trySendFrame(item: T): Boolean {
+  return try {
+    this.add(item)
+    true
+  } catch (e: IllegalStateException) {
+    throw Exception(e)
+  }
+}
+
 suspend fun onMainThread(code: () -> Unit) {
   withContext(Dispatchers.Main) {
     code()
