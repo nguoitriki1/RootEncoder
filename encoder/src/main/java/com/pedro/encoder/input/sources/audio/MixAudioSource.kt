@@ -154,7 +154,7 @@ class MixAudioSource(
         microphone.unMute()
     }
 
-    fun isMuted(): Boolean = microphone.isMuted
+    override fun isMuted(): Boolean = microphone.isMuted
 
     fun setAudioEffect(effect: CustomAudioEffect) {
         microphone.setCustomAudioEffect(effect)

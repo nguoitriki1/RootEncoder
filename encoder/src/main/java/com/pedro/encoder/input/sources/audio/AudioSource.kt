@@ -45,4 +45,5 @@ abstract class AudioSource {
   abstract fun isRunning(): Boolean
   abstract fun release()
   abstract fun muteAudio(enable: Boolean)
+  abstract fun isMuted() : Boolean
 }

@@ -119,7 +119,7 @@ class AudioFileSource(
         audioDecoder.unMute()
     }
 
-    fun isMuted(): Boolean = audioDecoder.isMuted
+    override fun isMuted(): Boolean = audioDecoder.isMuted
 
     fun moveTo(time: Double) {
         audioDecoder.moveTo(time)

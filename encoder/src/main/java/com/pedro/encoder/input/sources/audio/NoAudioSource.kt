@@ -48,10 +48,11 @@ class NoAudioSource : AudioSource() {
 
     override fun release() {}
     override fun muteAudio(enable: Boolean) {
-        if (enable)
-            isMuted = true
-        else
-            isMuted = false
+        isMuted = enable
+    }
+
+    override fun isMuted(): Boolean {
+        return isMuted;
     }
 
     override fun isRunning(): Boolean = running
